@@ -1,4 +1,3 @@
-
 package column
 
 import (
@@ -60,8 +59,12 @@ func (col *Decimal) parse(t Type) (_ *Decimal, err error) {
 		col.col = &proto.ColDecimal64{}
 	case col.precision <= 38:
 		col.col = &proto.ColDecimal128{}
-	default:
+	case col.precision <= 76:
 		col.col = &proto.ColDecimal256{}
+	case col.precision <= 154:
+		col.col = &proto.ColDecimal512{}
+	default:
+		return nil, fmt.Errorf("wrong precision of Decimal type: %d (max 154)", col.precision)
 	}
 	return col, nil
 }
@@ -109,6 +112,20 @@ func (col *Decimal) row(i int) *decimal.Decimal {
 		binary.LittleEndian.PutUint64(b[64/8:128/8], v.Low.High)
 		binary.LittleEndian.PutUint64(b[128/8:192/8], v.High.Low)
 		binary.LittleEndian.PutUint64(b[192/8:256/8], v.High.High)
+		bv := rawToBigInt(b, true)
+		value = decimal.NewFromBigInt(bv, int32(-col.scale))
+	case *proto.ColDecimal512:
+		v := vCol.Row(i)
+		b := make([]byte, 64)
+		// Assuming Decimal512 is composed of two UInt256 (Low, High) and each UInt256 is two UInt128 (Low, High)
+		binary.LittleEndian.PutUint64(b[0:64/8], v.Low.Low.Low)
+		binary.LittleEndian.PutUint64(b[64/8:128/8], v.Low.Low.High)
+		binary.LittleEndian.PutUint64(b[128/8:192/8], v.Low.High.Low)
+		binary.LittleEndian.PutUint64(b[192/8:256/8], v.Low.High.High)
+		binary.LittleEndian.PutUint64(b[256/8:320/8], v.High.Low.Low)
+		binary.LittleEndian.PutUint64(b[320/8:384/8], v.High.Low.High)
+		binary.LittleEndian.PutUint64(b[384/8:448/8], v.High.High.Low)
+		binary.LittleEndian.PutUint64(b[448/8:512/8], v.High.High.High)
 		bv := rawToBigInt(b, true)
 		value = decimal.NewFromBigInt(bv, int32(-col.scale))
 	}
@@ -281,6 +298,33 @@ func (col *Decimal) append(v *decimal.Decimal) {
 			High: proto.UInt128{
 				Low:  binary.LittleEndian.Uint64(dest[128/8 : 192/8]),
 				High: binary.LittleEndian.Uint64(dest[192/8 : 256/8]),
+			},
+		})
+	case *proto.ColDecimal512:
+		var bi *big.Int
+		bi = decimal.NewFromBigInt(v.Coefficient(), v.Exponent()+int32(col.scale)).BigInt()
+		dest := make([]byte, 64)
+		bigIntToRaw(dest, bi)
+		vCol.Append(proto.Decimal512{
+			Low: proto.UInt256{
+				Low: proto.UInt128{
+					Low:  binary.LittleEndian.Uint64(dest[0 : 64/8]),
+					High: binary.LittleEndian.Uint64(dest[64/8 : 128/8]),
+				},
+				High: proto.UInt128{
+					Low:  binary.LittleEndian.Uint64(dest[128/8 : 192/8]),
+					High: binary.LittleEndian.Uint64(dest[192/8 : 256/8]),
+				},
+			},
+			High: proto.UInt256{
+				Low: proto.UInt128{
+					Low:  binary.LittleEndian.Uint64(dest[256/8 : 320/8]),
+					High: binary.LittleEndian.Uint64(dest[320/8 : 384/8]),
+				},
+				High: proto.UInt128{
+					Low:  binary.LittleEndian.Uint64(dest[384/8 : 448/8]),
+					High: binary.LittleEndian.Uint64(dest[448/8 : 512/8]),
+				},
 			},
 		})
 	}
