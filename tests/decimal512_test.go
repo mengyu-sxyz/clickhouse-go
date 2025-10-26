@@ -37,23 +37,23 @@ func TestDecimal512(t *testing.T) {
 		require.NoError(t, conn.Exec(ctx, ddl))
 		batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_decimal512")
 		require.NoError(t, err)
-		
+
 		// Test with various decimal values
 		val1 := decimal.RequireFromString("123456789012345678901234567890.1234567890")
 		val2 := decimal.RequireFromString("987654321098765432109876543210.98765432109876543210")
 		val3 := decimal.RequireFromString("111111111111111111111111111111.111111111111111111111111111111")
-		
+
 		require.NoError(t, batch.Append(val1, val2, val3))
 		require.Equal(t, 1, batch.Rows())
 		require.NoError(t, batch.Send())
-		
+
 		var (
 			col1 decimal.Decimal
 			col2 decimal.Decimal
 			col3 decimal.Decimal
 		)
 		require.NoError(t, conn.QueryRow(ctx, "SELECT * FROM test_decimal512").Scan(&col1, &col2, &col3))
-		
+
 		// Compare values with appropriate precision
 		assert.True(t, val1.Equal(col1), "Col1: expected %v, got %v", val1, col1)
 		assert.True(t, val2.Equal(col2), "Col2: expected %v, got %v", val2, col2)
@@ -88,19 +88,19 @@ func TestNegativeDecimal512(t *testing.T) {
 		require.NoError(t, conn.Exec(ctx, ddl))
 		batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_decimal512_negative")
 		require.NoError(t, err)
-		
+
 		// Test with negative and null values
 		val1 := decimal.RequireFromString("-123456789012345678901234567890.1234567890")
 		val2 := decimal.RequireFromString("-987654321098765432109876543210.98765432109876543210")
-		
+
 		require.NoError(t, batch.Append(val1, val2, nil))
 		require.NoError(t, batch.Append(nil, val2, val1))
 		require.NoError(t, batch.Send())
-		
+
 		rows, err := conn.Query(ctx, "SELECT * FROM test_decimal512_negative ORDER BY Col1 NULLS LAST")
 		require.NoError(t, err)
 		defer rows.Close()
-		
+
 		var rowCount int
 		for rows.Next() {
 			var (
@@ -110,7 +110,7 @@ func TestNegativeDecimal512(t *testing.T) {
 			)
 			require.NoError(t, rows.Scan(&col1, &col2, &col3))
 			rowCount++
-			
+
 			switch rowCount {
 			case 1:
 				require.Nil(t, col1)
@@ -154,20 +154,20 @@ func TestDecimal512Array(t *testing.T) {
 		require.NoError(t, conn.Exec(ctx, ddl))
 		batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_decimal512_array")
 		require.NoError(t, err)
-		
+
 		values := []decimal.Decimal{
 			decimal.RequireFromString("123.456"),
 			decimal.RequireFromString("789.012"),
 			decimal.RequireFromString("-345.678"),
 		}
-		
+
 		require.NoError(t, batch.Append(values))
 		require.NoError(t, batch.Send())
-		
+
 		var result []decimal.Decimal
 		require.NoError(t, conn.QueryRow(ctx, "SELECT * FROM test_decimal512_array").Scan(&result))
 		require.Len(t, result, 3)
-		
+
 		for i, expected := range values {
 			assert.True(t, expected.Equal(result[i]), "Index %d: expected %v, got %v", i, expected, result[i])
 		}
@@ -198,17 +198,16 @@ func TestDecimal512String(t *testing.T) {
 		require.NoError(t, conn.Exec(ctx, ddl))
 		batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_decimal512_string")
 		require.NoError(t, err)
-		
+
 		// Test string input
 		strValue := "123456789012345678901234567890.123456789012345"
-		require.NoError(t, batch.AppendRow(strValue))
+		require.NoError(t, batch.Append(strValue))
 		require.NoError(t, batch.Send())
-		
+
 		var result decimal.Decimal
 		require.NoError(t, conn.QueryRow(ctx, "SELECT * FROM test_decimal512_string").Scan(&result))
-		
+
 		expected := decimal.RequireFromString(strValue)
 		assert.True(t, expected.Equal(result), "expected %v, got %v", expected, result)
 	})
 }
-
