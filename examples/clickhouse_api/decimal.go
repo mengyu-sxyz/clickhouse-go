@@ -1,9 +1,9 @@
-
 package clickhouse_api
 
 import (
 	"context"
 	"fmt"
+
 	"github.com/shopspring/decimal"
 )
 
@@ -25,7 +25,7 @@ func ReadWriteDecimal() error {
 			Col3 Decimal(15,7), 
 			Col4 Decimal128(8), 
 			Col5 Decimal256(9),
-			Col6 Decimal512(20)
+			Col6 Decimal(154, 50)
 		) Engine Memory
 		`); err != nil {
 		return err
@@ -35,10 +35,18 @@ func ReadWriteDecimal() error {
 	if err != nil {
 		return err
 	}
-	
-	// Decimal512 example - for very large precision requirements (77-154 digits)
-	col6Val := decimal.RequireFromString("123456789012345678901234567890.12345678901234567890")
-	
+
+	// Decimal512 example - supports very large precision (77-154 digits)
+	// Demonstrating maximum precision: Decimal(154, 50) = 104 integer digits + 50 decimal digits
+	// Option 1: Simple way with decimal.New(coefficient, exponent)
+	// col6Val := decimal.New(512, 9)  // = 512000000000
+
+	// Option 2: Maximum precision example - 154 total digits (104 integer + 50 decimal)
+	col6Val := decimal.RequireFromString(
+		"1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012." +
+			"12345678901234567890123456789012345678901234567890",
+	)
+
 	if err = batch.Append(
 		decimal.New(25, 4),
 		decimal.New(30, 5),
