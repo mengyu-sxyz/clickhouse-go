@@ -20,8 +20,9 @@ require (
 	golang.org/x/net v0.46.0
 )
 
-// use local ch-go with Decimal512 support
-replace github.com/ClickHouse/ch-go => /root/ch-go
+// use forked ch-go with Decimal512 support
+// https://github.com/mengyu-sxyz/ch-go
+replace github.com/ClickHouse/ch-go => github.com/mengyu-sxyz/ch-go v0.0.0-20251025074453-0a90c802067d
 
 require go.opentelemetry.io/otel v1.38.0 // indirect
 

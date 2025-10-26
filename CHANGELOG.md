@@ -1,3 +1,18 @@
+# v2.41.0, 2025-10-26 (Unreleased)
+
+## What's Changed
+### Enhancements 🎉
+* feat: Add Decimal512 support for ultra-high precision decimal calculations
+  - Support for `Decimal(P, S)` where 77 <= P <= 154 (up to 154 digits precision)
+  - Full integration with complex types: `Nullable(Decimal512)`, `Array(Decimal512)`, `Tuple(..., Decimal512, ...)`, `Map(K, Decimal512)`
+  - Compatible with both Native and HTTP protocols
+  - Full `database/sql` interface support
+  - Requires ClickHouse Server 24.8+
+  - Uses `github.com/shopspring/decimal` for decimal handling
+  - Automatic support through existing type infrastructure
+
+**Full Changelog**: TBD
+
 # v2.40.3, 2025-09-13 <!-- Release notes generated using configuration in .github/release.yml at main -->
 
 ## What's Changed
