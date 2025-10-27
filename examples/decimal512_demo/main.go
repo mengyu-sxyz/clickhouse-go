@@ -13,11 +13,11 @@ import (
 func main() {
 	// 配置连接参数
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"}, // 修改为你的 ClickHouse 地址
+		Addr: []string{"127.0.0.1:19000"}, // 修改为你的 ClickHouse 地址
 		Auth: clickhouse.Auth{
 			Database: "default", // 修改为你的数据库
-			Username: "default", // 修改为你的用户名
-			Password: "",        // 修改为你的密码
+			Username: "admin",   // 修改为你的用户名
+			Password: "secret",  // 修改为你的密码
 		},
 		DialTimeout: 5 * time.Second,
 		Compression: &clickhouse.Compression{
@@ -51,7 +51,7 @@ func main() {
 	// 创建测试表
 	tableName := "test_decimal512_demo"
 	fmt.Printf("\n🔨 创建测试表: %s\n", tableName)
-	
+
 	dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName)
 	if err := conn.Exec(ctx, dropSQL); err != nil {
 		log.Fatal("删除表失败:", err)
@@ -68,7 +68,7 @@ func main() {
 		) ENGINE = MergeTree()
 		ORDER BY id
 	`, tableName)
-	
+
 	if err := conn.Exec(ctx, createSQL); err != nil {
 		log.Fatal("创建表失败:", err)
 	}
@@ -76,7 +76,7 @@ func main() {
 
 	// 准备测试数据
 	fmt.Println("\n📝 插入测试数据...")
-	
+
 	batch, err := conn.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", tableName))
 	if err != nil {
 		log.Fatal("准备批量插入失败:", err)
@@ -137,7 +137,7 @@ func main() {
 
 	// 查询并验证数据
 	fmt.Println("\n🔍 查询数据并验证...")
-	
+
 	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT * FROM %s ORDER BY id", tableName))
 	if err != nil {
 		log.Fatal("查询失败:", err)
@@ -145,7 +145,7 @@ func main() {
 	defer rows.Close()
 
 	fmt.Println("\n" + repeat("=", 150))
-	fmt.Printf("%-5s | %-20s | %-35s | %-60s | %-110s\n", 
+	fmt.Printf("%-5s | %-20s | %-35s | %-60s | %-110s\n",
 		"ID", "名称", "小精度(80位)", "中精度(120位)", "大精度(154位)")
 	fmt.Println(repeat("=", 150))
 
@@ -165,7 +165,7 @@ func main() {
 		}
 
 		rowCount++
-		
+
 		// 显示数据
 		fmt.Printf("%-5d | %-20s | %-35s | %-60s | %-110s\n",
 			id,
@@ -207,7 +207,7 @@ func main() {
 // 测试复杂类型（Nullable, Array, Map）
 func testComplexTypes(ctx context.Context, conn clickhouse.Conn) {
 	tableName := "test_decimal512_complex_demo"
-	
+
 	// 创建表
 	dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName)
 	conn.Exec(ctx, dropSQL)
@@ -221,7 +221,7 @@ func testComplexTypes(ctx context.Context, conn clickhouse.Conn) {
 		) ENGINE = MergeTree()
 		ORDER BY id
 	`, tableName)
-	
+
 	if err := conn.Exec(ctx, createSQL); err != nil {
 		log.Printf("创建复杂类型表失败: %v", err)
 		return
@@ -316,4 +316,3 @@ func repeat(s string, n int) string {
 	}
 	return result
 }
-
