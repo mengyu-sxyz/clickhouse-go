@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -83,6 +84,10 @@ func main() {
 	}
 
 	// 测试数据 - 不同精度的 Decimal512
+	// 注意：Decimal(P, S) 中 P 是总位数，S 是小数位数
+	// Decimal(80, 10)：整数部分最多 70 位
+	// Decimal(120, 25)：整数部分最多 95 位
+	// Decimal(153, 50)：整数部分最多 103 位
 	testData := []struct {
 		id          uint32
 		name        string
@@ -93,23 +98,33 @@ func main() {
 		{
 			id:          1,
 			name:        "小精度测试",
-			amountSmall: "12345678901234567890.1234567890",
-			amountMed:   "11111111111111111111111111111111111111111111111111.1111111111111111111111111",
-			amountLarge: "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012.12345678901234567890123456789012345678901234567890",
+			amountSmall: "12345678901234567890.1234567890",                                                                       // 20位整数 + 10位小数 = 30位 < 80
+			amountMed:   "11111111111111111111111111111111111111111111111111.1111111111111111111111111",                          // 50位整数 + 25位小数 = 75位 < 120
+			amountLarge: "12345678901234567890123456789012345678901234567890.12345678901234567890123456789012345678901234567890", // 50位整数 + 50位小数 = 100位 < 153
 		},
 		{
 			id:          2,
 			name:        "中精度测试",
-			amountSmall: "98765432109876543210.9876543210",
-			amountMed:   "22222222222222222222222222222222222222222222222222.2222222222222222222222222",
-			amountLarge: "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999.99999999999999999999999999999999999999999999999999",
+			amountSmall: "98765432109876543210.9876543210",                                                                       // 20位整数 + 10位小数
+			amountMed:   "22222222222222222222222222222222222222222222222222.2222222222222222222222222",                          // 50位整数 + 25位小数
+			amountLarge: "99999999999999999999999999999999999999999999999999.99999999999999999999999999999999999999999999999999", // 50位整数 + 50位小数
 		},
 		{
 			id:          3,
 			name:        "负数测试",
-			amountSmall: "-55555555555555555555.5555555555",
-			amountMed:   "-33333333333333333333333333333333333333333333333333.3333333333333333333333333",
-			amountLarge: "-7777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777.77777777777777777777777777777777777777777777777777",
+			amountSmall: "-55555555555555555555.5555555555",                                                                       // 20位整数 + 10位小数
+			amountMed:   "-33333333333333333333333333333333333333333333333333.3333333333333333333333333",                          // 50位整数 + 25位小数
+			amountLarge: "-77777777777777777777777777777777777777777777777777.77777777777777777777777777777777777777777777777777", // 50位整数 + 50位小数
+		},
+		{
+			id:   4,
+			name: "边界测试-接近最大值",
+			// Decimal(80,10): 整数最多70位
+			amountSmall: strings.Repeat("9", 70) + "." + strings.Repeat("9", 10),
+			// Decimal(120,25): 整数最多95位
+			amountMed: strings.Repeat("9", 95) + "." + strings.Repeat("9", 25),
+			// Decimal(153,50): 整数最多103位
+			amountLarge: strings.Repeat("9", 103) + "." + strings.Repeat("9", 50),
 		},
 	}
 
@@ -177,8 +192,17 @@ func main() {
 
 		// 验证数据完整性
 		expectedSmall := testData[id-1].amountSmall
+		expectedMed := testData[id-1].amountMed
+		expectedLarge := testData[id-1].amountLarge
+
 		if !decimal.RequireFromString(expectedSmall).Equal(amountSmall) {
-			log.Printf("⚠️  警告: ID=%d 的小精度数据不匹配！", id)
+			log.Printf("⚠️  警告: ID=%d 的小精度数据不匹配！期望: %s, 实际: %s", id, expectedSmall, amountSmall.String())
+		}
+		if !decimal.RequireFromString(expectedMed).Equal(amountMed) {
+			log.Printf("⚠️  警告: ID=%d 的中精度数据不匹配！期望: %s, 实际: %s", id, expectedMed, amountMed.String())
+		}
+		if !decimal.RequireFromString(expectedLarge).Equal(amountLarge) {
+			log.Printf("⚠️  警告: ID=%d 的大精度数据不匹配！期望: %s, 实际: %s", id, expectedLarge, amountLarge.String())
 		}
 	}
 	fmt.Println(repeat("=", 150))
@@ -310,9 +334,5 @@ func truncateString(s string, maxLen int) string {
 
 // 字符串重复函数
 func repeat(s string, n int) string {
-	result := ""
-	for i := 0; i < n; i++ {
-		result += s
-	}
-	return result
+	return strings.Repeat(s, n)
 }

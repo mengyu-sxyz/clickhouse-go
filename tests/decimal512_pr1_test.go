@@ -39,5 +39,3 @@ func Test_Decimal512_Column_SelectByPrecision(t *testing.T) {
 
 	_ = ch.Settings{} // keep import stable
 }
-
-

@@ -157,18 +157,24 @@ func (col *Decimal) Append(v any) (nulls []uint8, err error) {
 	case []decimal.Decimal:
 		nulls = make([]uint8, len(v))
 		for i := range v {
-			col.append(&v[i])
+			if err := col.append(&v[i]); err != nil {
+				return nil, err
+			}
 		}
 	case []*decimal.Decimal:
 		nulls = make([]uint8, len(v))
 		for i := range v {
 			switch {
 			case v[i] != nil:
-				col.append(v[i])
+				if err := col.append(v[i]); err != nil {
+					return nil, err
+				}
 			default:
 				nulls[i] = 1
 				value := decimal.New(0, 0)
-				col.append(&value)
+				if err := col.append(&value); err != nil {
+					return nil, err
+				}
 			}
 		}
 	case []string:
@@ -178,7 +184,9 @@ func (col *Decimal) Append(v any) (nulls []uint8, err error) {
 			if err != nil {
 				return nil, fmt.Errorf("could not convert \"%v\" to decimal: %w", v[i], err)
 			}
-			col.append(&d)
+			if err := col.append(&d); err != nil {
+				return nil, err
+			}
 		}
 	case []*string:
 		nulls = make([]uint8, len(v))
@@ -186,8 +194,9 @@ func (col *Decimal) Append(v any) (nulls []uint8, err error) {
 			if v[i] == nil {
 				nulls[i] = 1
 				value := decimal.New(0, 0)
-				col.append(&value)
-
+				if err := col.append(&value); err != nil {
+					return nil, err
+				}
 				continue
 			}
 
@@ -195,7 +204,9 @@ func (col *Decimal) Append(v any) (nulls []uint8, err error) {
 			if err != nil {
 				return nil, fmt.Errorf("could not convert \"%v\" to decimal: %w", *v[i], err)
 			}
-			col.append(&d)
+			if err := col.append(&d); err != nil {
+				return nil, err
+			}
 		}
 	default:
 		if valuer, ok := v.(driver.Valuer); ok {
@@ -262,11 +273,10 @@ func (col *Decimal) AppendRow(v any) error {
 			From: fmt.Sprintf("%T", v),
 		}
 	}
-	col.append(&value)
-	return nil
+	return col.append(&value)
 }
 
-func (col *Decimal) append(v *decimal.Decimal) {
+func (col *Decimal) append(v *decimal.Decimal) error {
 	switch vCol := col.col.(type) {
 	case *proto.ColDecimal32:
 		var part uint32
@@ -303,6 +313,11 @@ func (col *Decimal) append(v *decimal.Decimal) {
 	case *proto.ColDecimal512:
 		var bi *big.Int
 		bi = decimal.NewFromBigInt(v.Coefficient(), v.Exponent()+int32(col.scale)).BigInt()
+		// Decimal512 最多支持 512 位（64 字节）
+		if bi.BitLen() > 512 {
+			return fmt.Errorf("decimal value exceeds Decimal512 capacity: %d bits > 512 bits (precision=%d, scale=%d)",
+				bi.BitLen(), col.precision, col.scale)
+		}
 		dest := make([]byte, 64)
 		bigIntToRaw(dest, bi)
 		vCol.Append(proto.Decimal512{
@@ -328,6 +343,7 @@ func (col *Decimal) append(v *decimal.Decimal) {
 			},
 		})
 	}
+	return nil
 }
 
 func (col *Decimal) Decode(reader *proto.Reader, rows int) error {
