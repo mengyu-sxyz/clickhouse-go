@@ -63,7 +63,7 @@ func main() {
 			name String,
 			amount_small Decimal(80, 10),
 			amount_medium Decimal(120, 25),
-			amount_large Decimal(154, 50),
+			amount_large Decimal(153, 50),
 			created_at DateTime
 		) ENGINE = MergeTree()
 		ORDER BY id
@@ -146,7 +146,7 @@ func main() {
 
 	fmt.Println("\n" + repeat("=", 150))
 	fmt.Printf("%-5s | %-20s | %-35s | %-60s | %-110s\n",
-		"ID", "名称", "小精度(80位)", "中精度(120位)", "大精度(154位)")
+		"ID", "名称", "小精度(80位)", "中精度(120位)", "大精度(153位)")
 	fmt.Println(repeat("=", 150))
 
 	rowCount := 0
