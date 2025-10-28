@@ -14,11 +14,9 @@ import (
 func main() {
 	// 配置连接参数
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:19000"}, // 修改为你的 ClickHouse 地址
+		Addr: []string{"127.0.0.1:9000"}, // 修改为你的 ClickHouse 地址
 		Auth: clickhouse.Auth{
 			Database: "default", // 修改为你的数据库
-			Username: "admin",   // 修改为你的用户名
-			Password: "secret",  // 修改为你的密码
 		},
 		DialTimeout: 5 * time.Second,
 		Compression: &clickhouse.Compression{
