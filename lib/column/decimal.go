@@ -1,4 +1,3 @@
-
 package column
 
 import (
@@ -60,8 +59,12 @@ func (col *Decimal) parse(t Type) (_ *Decimal, err error) {
 		col.col = &proto.ColDecimal64{}
 	case col.precision <= 38:
 		col.col = &proto.ColDecimal128{}
-	default:
+	case col.precision <= 76:
 		col.col = &proto.ColDecimal256{}
+	case col.precision <= 154:
+		col.col = &proto.ColDecimal512{}
+	default:
+		return nil, fmt.Errorf("wrong precision of Decimal type: %d (max 154)", col.precision)
 	}
 	return col, nil
 }
@@ -111,6 +114,20 @@ func (col *Decimal) row(i int) *decimal.Decimal {
 		binary.LittleEndian.PutUint64(b[192/8:256/8], v.High.High)
 		bv := rawToBigInt(b, true)
 		value = decimal.NewFromBigInt(bv, int32(-col.scale))
+	case *proto.ColDecimal512:
+		v := vCol.Row(i)
+		b := make([]byte, 64)
+		// Assuming Decimal512 is composed of two UInt256 (Low, High) and each UInt256 is two UInt128 (Low, High)
+		binary.LittleEndian.PutUint64(b[0:64/8], v.Low.Low.Low)
+		binary.LittleEndian.PutUint64(b[64/8:128/8], v.Low.Low.High)
+		binary.LittleEndian.PutUint64(b[128/8:192/8], v.Low.High.Low)
+		binary.LittleEndian.PutUint64(b[192/8:256/8], v.Low.High.High)
+		binary.LittleEndian.PutUint64(b[256/8:320/8], v.High.Low.Low)
+		binary.LittleEndian.PutUint64(b[320/8:384/8], v.High.Low.High)
+		binary.LittleEndian.PutUint64(b[384/8:448/8], v.High.High.Low)
+		binary.LittleEndian.PutUint64(b[448/8:512/8], v.High.High.High)
+		bv := rawToBigInt(b, true)
+		value = decimal.NewFromBigInt(bv, int32(-col.scale))
 	}
 	return &value
 }
@@ -140,18 +157,24 @@ func (col *Decimal) Append(v any) (nulls []uint8, err error) {
 	case []decimal.Decimal:
 		nulls = make([]uint8, len(v))
 		for i := range v {
-			col.append(&v[i])
+			if err := col.append(&v[i]); err != nil {
+				return nil, err
+			}
 		}
 	case []*decimal.Decimal:
 		nulls = make([]uint8, len(v))
 		for i := range v {
 			switch {
 			case v[i] != nil:
-				col.append(v[i])
+				if err := col.append(v[i]); err != nil {
+					return nil, err
+				}
 			default:
 				nulls[i] = 1
 				value := decimal.New(0, 0)
-				col.append(&value)
+				if err := col.append(&value); err != nil {
+					return nil, err
+				}
 			}
 		}
 	case []string:
@@ -161,7 +184,9 @@ func (col *Decimal) Append(v any) (nulls []uint8, err error) {
 			if err != nil {
 				return nil, fmt.Errorf("could not convert \"%v\" to decimal: %w", v[i], err)
 			}
-			col.append(&d)
+			if err := col.append(&d); err != nil {
+				return nil, err
+			}
 		}
 	case []*string:
 		nulls = make([]uint8, len(v))
@@ -169,8 +194,9 @@ func (col *Decimal) Append(v any) (nulls []uint8, err error) {
 			if v[i] == nil {
 				nulls[i] = 1
 				value := decimal.New(0, 0)
-				col.append(&value)
-
+				if err := col.append(&value); err != nil {
+					return nil, err
+				}
 				continue
 			}
 
@@ -178,7 +204,9 @@ func (col *Decimal) Append(v any) (nulls []uint8, err error) {
 			if err != nil {
 				return nil, fmt.Errorf("could not convert \"%v\" to decimal: %w", *v[i], err)
 			}
-			col.append(&d)
+			if err := col.append(&d); err != nil {
+				return nil, err
+			}
 		}
 	default:
 		if valuer, ok := v.(driver.Valuer); ok {
@@ -245,11 +273,10 @@ func (col *Decimal) AppendRow(v any) error {
 			From: fmt.Sprintf("%T", v),
 		}
 	}
-	col.append(&value)
-	return nil
+	return col.append(&value)
 }
 
-func (col *Decimal) append(v *decimal.Decimal) {
+func (col *Decimal) append(v *decimal.Decimal) error {
 	switch vCol := col.col.(type) {
 	case *proto.ColDecimal32:
 		var part uint32
@@ -283,7 +310,40 @@ func (col *Decimal) append(v *decimal.Decimal) {
 				High: binary.LittleEndian.Uint64(dest[192/8 : 256/8]),
 			},
 		})
+	case *proto.ColDecimal512:
+		var bi *big.Int
+		bi = decimal.NewFromBigInt(v.Coefficient(), v.Exponent()+int32(col.scale)).BigInt()
+		// Decimal512 最多支持 512 位（64 字节）
+		if bi.BitLen() > 512 {
+			return fmt.Errorf("decimal value exceeds Decimal512 capacity: %d bits > 512 bits (precision=%d, scale=%d)",
+				bi.BitLen(), col.precision, col.scale)
+		}
+		dest := make([]byte, 64)
+		bigIntToRaw(dest, bi)
+		vCol.Append(proto.Decimal512{
+			Low: proto.UInt256{
+				Low: proto.UInt128{
+					Low:  binary.LittleEndian.Uint64(dest[0 : 64/8]),
+					High: binary.LittleEndian.Uint64(dest[64/8 : 128/8]),
+				},
+				High: proto.UInt128{
+					Low:  binary.LittleEndian.Uint64(dest[128/8 : 192/8]),
+					High: binary.LittleEndian.Uint64(dest[192/8 : 256/8]),
+				},
+			},
+			High: proto.UInt256{
+				Low: proto.UInt128{
+					Low:  binary.LittleEndian.Uint64(dest[256/8 : 320/8]),
+					High: binary.LittleEndian.Uint64(dest[320/8 : 384/8]),
+				},
+				High: proto.UInt128{
+					Low:  binary.LittleEndian.Uint64(dest[384/8 : 448/8]),
+					High: binary.LittleEndian.Uint64(dest[448/8 : 512/8]),
+				},
+			},
+		})
 	}
+	return nil
 }
 
 func (col *Decimal) Decode(reader *proto.Reader, rows int) error {

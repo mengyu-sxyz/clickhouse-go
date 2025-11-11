@@ -4,6 +4,22 @@ Whilst each ClickHouse type often has a logical Golang type, we aim to support i
 
 This effort is ongoing and can be separated in to insertion (`Append`/`AppendRow`) and read time (via a `Scan`). Should you need support for a specific conversion, please raise an issue.
 
+## Decimal Type Support
+
+The client supports all ClickHouse Decimal types through the `decimal.Decimal` Go type from [github.com/shopspring/decimal](https://github.com/shopspring/decimal):
+
+| ClickHouse Type | Precision | Go Type | Notes |
+|----------------|-----------|---------|-------|
+| `Decimal32(S)` | 9 digits | `decimal.Decimal` | Maps to Decimal(9, S) |
+| `Decimal64(S)` | 18 digits | `decimal.Decimal` | Maps to Decimal(18, S) |
+| `Decimal128(S)` | 38 digits | `decimal.Decimal` | Maps to Decimal(38, S) |
+| `Decimal256(S)` | 76 digits | `decimal.Decimal` | Maps to Decimal(76, S) |
+| **`Decimal512(S)`** | **154 digits** | `decimal.Decimal` | **Maps to Decimal(77-154, S)** ⚡ |
+
+**New in v2.41.0:** `Decimal512` support enables ultra-high precision calculations up to 154 digits. Requires ClickHouse Server 24.8+.
+
+All Decimal types work seamlessly with complex types like `Nullable`, `Array`, `Tuple`, and `Map`.
+
 ## Append Support
 
 All types can be inserted as a value or pointer.

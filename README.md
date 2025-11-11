@@ -53,6 +53,32 @@ The client is tested against the currently [supported versions](https://github.c
 
 [https://clickhouse.com/docs/en/integrations/go](https://clickhouse.com/docs/en/integrations/go)
 
+## Type Support
+
+For complete type mapping information, see [TYPES.md](TYPES.md).
+
+### Decimal512 Support (New!)
+
+This client now supports ClickHouse's `Decimal512` type for ultra-high precision decimal calculations (77-154 digits):
+
+```go
+// Supports Decimal(P, S) where 77 <= P <= 154
+val := decimal.RequireFromString("1234567890...") // up to 154 digits
+batch.Append(val)
+```
+
+**Features:**
+- ✅ Full precision support (77-154 digits)
+- ✅ Works with all complex types: `Nullable(Decimal512)`, `Array(Decimal512)`, `Map(String, Decimal512)`, etc.
+- ✅ Compatible with both Native and HTTP protocols
+- ✅ Supports `database/sql` standard interface
+
+**Requirements:**
+- ClickHouse Server 24.8+
+- Uses `github.com/shopspring/decimal` for Go decimal handling
+
+See [examples/clickhouse_api/decimal.go](examples/clickhouse_api/decimal.go) for usage examples.
+
 # `clickhouse` interface (formally `native` interface)
 
 ```go

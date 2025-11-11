@@ -1,9 +1,9 @@
-
 package clickhouse_api
 
 import (
 	"context"
 	"fmt"
+
 	"github.com/shopspring/decimal"
 )
 
@@ -24,7 +24,8 @@ func ReadWriteDecimal() error {
 			Col2 Decimal(18,6), 
 			Col3 Decimal(15,7), 
 			Col4 Decimal128(8), 
-			Col5 Decimal256(9)
+			Col5 Decimal256(9),
+			Col6 Decimal(154, 50)
 		) Engine Memory
 		`); err != nil {
 		return err
@@ -34,12 +35,25 @@ func ReadWriteDecimal() error {
 	if err != nil {
 		return err
 	}
+
+	// Decimal512 example - supports very large precision (77-154 digits)
+	// Demonstrating maximum precision: Decimal(154, 50) = 104 integer digits + 50 decimal digits
+	// Option 1: Simple way with decimal.New(coefficient, exponent)
+	// col6Val := decimal.New(512, 9)  // = 512000000000
+
+	// Option 2: Maximum precision example - 154 total digits (104 integer + 50 decimal)
+	col6Val := decimal.RequireFromString(
+		"1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012." +
+			"12345678901234567890123456789012345678901234567890",
+	)
+
 	if err = batch.Append(
 		decimal.New(25, 4),
 		decimal.New(30, 5),
 		decimal.New(35, 6),
 		decimal.New(135, 7),
 		decimal.New(256, 8),
+		col6Val,
 	); err != nil {
 		return err
 	}
@@ -54,11 +68,12 @@ func ReadWriteDecimal() error {
 		col3 decimal.Decimal
 		col4 decimal.Decimal
 		col5 decimal.Decimal
+		col6 decimal.Decimal
 	)
 
-	if err = conn.QueryRow(ctx, "SELECT * FROM example").Scan(&col1, &col2, &col3, &col4, &col5); err != nil {
+	if err = conn.QueryRow(ctx, "SELECT * FROM example").Scan(&col1, &col2, &col3, &col4, &col5, &col6); err != nil {
 		return err
 	}
-	fmt.Printf("col1=%v, col2=%v, col3=%v, col4=%v, col5=%v\n", col1, col2, col3, col4, col5)
+	fmt.Printf("col1=%v, col2=%v, col3=%v, col4=%v, col5=%v, col6=%v\n", col1, col2, col3, col4, col5, col6)
 	return nil
 }
